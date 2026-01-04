@@ -1,4 +1,3 @@
-
 /*
 This is the demonstration code for the UNIVERSAL-SOLDER / Everset ES100 
 Application Development Kit. It reads the decoded time stamp from 
@@ -39,8 +38,6 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
  */
-
-
 // include the library code:
 #include <LiquidCrystal.h>
 #include <DS3231.h>
@@ -78,7 +75,7 @@ boolean continous = false;        // variable to tell the system to continously 
 boolean validdecode = false;      // variable to rapidly know if the system had a valid decode done lately
 
 
-Time t;
+Time rtcTime;
 ES100DateTime d;
 ES100Status0  status0;
 ES100NextDst  nextDst;
@@ -93,47 +90,48 @@ void atomic() {
   interruptCnt++;
 }
 
+
 char * getISODateStr() {
-  static char result[19];
+  static char result[21];
 
-  t=rtc.getTime();
+  rtcTime = rtc.getTime();
 
-  result[0]=char((t.year / 1000)+48);
-  result[1]=char(((t.year % 1000) / 100)+48);
-  result[2]=char(((t.year % 100) / 10)+48);
-  result[3]=char((t.year % 10)+48);
+  result[0]=char((rtcTime.year / 1000)+48);
+  result[1]=char(((rtcTime.year % 1000) / 100)+48);
+  result[2]=char(((rtcTime.year % 100) / 10)+48);
+  result[3]=char((rtcTime.year % 10)+48);
   result[4]=45;
-  if (t.mon<10)
+  if (rtcTime.mon<10)
     result[5]=48;
   else
-    result[5]=char((t.mon / 10)+48);
-  result[6]=char((t.mon % 10)+48);
+    result[5]=char((rtcTime.mon / 10)+48);
+  result[6]=char((rtcTime.mon % 10)+48);
   result[7]=45;
-  if (t.date<10)
+  if (rtcTime.date<10)
     result[8]=48;
   else
-    result[8]=char((t.date / 10)+48);
-  result[9]=char((t.date % 10)+48);
+    result[8]=char((rtcTime.date / 10)+48);
+  result[9]=char((rtcTime.date % 10)+48);
   
   result[10]=84;
 
-  if (t.hour<10)
+  if (rtcTime.hour<10)
     result[11]=48;
   else
-    result[11]=char((t.hour / 10)+48);
-  result[12]=char((t.hour % 10)+48);
+    result[11]=char((rtcTime.hour / 10)+48);
+  result[12]=char((rtcTime.hour % 10)+48);
   result[13]=58;
-  if (t.min<10)
+  if (rtcTime.min<10)
     result[14]=48;
   else
-    result[14]=char((t.min / 10)+48);
-  result[15]=char((t.min % 10)+48);
+    result[14]=char((rtcTime.min / 10)+48);
+  result[15]=char((rtcTime.min % 10)+48);
   result[16]=58;
-  if (t.sec<10)
+  if (rtcTime.sec<10)
     result[17]=48;
   else
-    result[17]=char((t.sec / 10)+48);
-  result[18]=char((t.sec % 10)+48);
+    result[17]=char((rtcTime.sec / 10)+48);
+  result[18]=char((rtcTime.sec % 10)+48);
   result[19]=90;
   result[20]=0;
 
@@ -344,7 +342,7 @@ void showlcd() {
         break;
     }
   }
-  else {
+  else { // haven't received valid decode yet
     lcd.setCursor(0,1);
     displayInterrupt();
     lcd.setCursor(0,2);
@@ -419,7 +417,7 @@ void loop() {
       lastSyncMillis = millis();
       // We received a valid decode
       d = es100.getDateTime();
-      // Updating the RTC
+      // Updating the RTC (the RTC is on GMT)
       rtc.setDate(d.day, d.month, 2000+d.year);
       rtc.setTime(d.hour, d.minute, d.second + ((millis() - atomicMillis)/1000));
 
@@ -457,7 +455,7 @@ void loop() {
 
     // set the trigger to start reception at midnight (UTC-4) if we are not in continous mode.
     // 4am UTC is midnight for me, adjust to your need
-    trigger = (!continous && !receiving && t.hour == 4 && t.min == 0); 
+    trigger = (!continous && !receiving && t.hour == 4 && t.min == 0);
     
     lastMillis = millis();
   }
