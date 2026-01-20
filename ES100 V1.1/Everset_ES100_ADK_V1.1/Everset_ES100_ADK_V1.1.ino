@@ -39,10 +39,13 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
  */
 // include the library code:
+#include <Time.h>
 #include <LiquidCrystal.h>
 #include <DS3231.h>
 #include <ES100.h>
 #include <Wire.h>
+#include <TimeLib.h>
+#include <Uptime.h>
 
 
 #define lcdRS 4
@@ -82,6 +85,11 @@ ES100NextDst  nextDst;
 
 DS3231 rtc(SDA, SCL);
 
+unsigned long invalid_decode = 0;
+unsigned long valid_syncs = 0;
+#define DST_OFFSET (-7)
+
+#define LED_STATUS 3
 
 void atomic() {
   // Called procedure when we receive an interrupt from the ES100
@@ -90,11 +98,35 @@ void atomic() {
   interruptCnt++;
 }
 
+void getRTCTimeStr(Time rtcTime, char* buf) {
+  sprintf(buf, "%02d-%02d-%02d %02d:%02d:%02d",
+          rtcTime.mon, rtcTime.date, rtcTime.year, rtcTime.hour, rtcTime.min, rtcTime.sec);
+}
+
+char* getLocalTimeStr() {
+  static char result[32];
+
+  // get the current rtc time which should be in UTC
+  rtcTime = rtc.getTime();
+
+  // This uses the TimeLib functions
+  setTime(rtcTime.hour,rtcTime.min,rtcTime.sec,rtcTime.date,rtcTime.mon,rtcTime.year);
+  time_t nowTime = now();
+  long adj = DST_OFFSET*3600;
+  if (status0.dstState)
+  {
+    adj += 3600;
+  }
+  adjustTime(adj);
+  nowTime = now();
+  sprintf(result, "%02d/%02d/%04d %02d:%02d:%02d",month(),day(),year(),hour(),minute(),second());
+  return result;
+}
 
 char * getISODateStr() {
   static char result[21];
 
-  rtcTime = rtc.getTime();
+  // rtcTime = rtc.getTime();
 
   result[0]=char((rtcTime.year / 1000)+48);
   result[1]=char(((rtcTime.year % 1000) / 100)+48);
@@ -257,18 +289,51 @@ void displayAntenna() {
   }
 }
 
+void displayUptime() {
+  char buf[21];
+  Uptime::calculateUptime();
+  sprintf(buf, "Up: %03dd %02dh %02dm %02ds", Uptime::getDays(),Uptime::getHours(),Uptime::getMinutes(),Uptime::getSeconds());
+  lcd.print(buf);
+}
+
 void clearLine(unsigned int n) {
   while (n-- > 0)
     lcd.print(" ");
 }
 
+void displayValidSyncs(void) {
+  char buf[21];
+  sprintf(buf, "Syncs: %lu", valid_syncs);
+  lcd.print(buf);
+}
+
+void displayDecodeErrors(void) {
+  char buf[21];
+  sprintf(buf, "Dec Err: %lu", invalid_decode);
+  lcd.print(buf);
+}
+
+// all the functions: displayInterrupt, displayLastSync, displayDST, displayNDST, displayLeapSecond, displayAntenna, displayUptime, displayValidSyncs, displayDecodeErrors
+// If we include the uptime in the scrolling text:
+// case   functions called
+// 1      displayInterrupt, displayLastSync, displayDST
+// 2      displayLastSync, displayDST, displayNDST
+// 3      displayDST, displayNDST, displayLeapSecond
+// 4      displayNDST, displayLeapSecond, displayAntenna
+// 5      displayLeapSecond, displayAntenna, displayUptime
+// 6      displayAntenna, displayUptime, displayValidSyncs
+// 7      displayUptime, displayValidSyncs, displayDecodeErrors
+// 8      displayValidSyncs, displayDecodeErrors, displayInterrupt
+// 9      displayDecodeErrors, displayInterrupt, displayLastSync
+
 void showlcd() {
   lcd.setCursor(0,0);
-  lcd.print(getISODateStr());
+  // lcd.print(getISODateStr());
+  lcd.print(getLocalTimeStr());
 
   if (validdecode) {
     // Scroll lines every 2 seconds.
-    int lcdLine = (millis() / 2000 % 6) + 1;
+    int lcdLine = (millis() / 2000 % 9) + 1;
 
     lcd.setCursor(0,1);
     clearLine(20);
@@ -292,15 +357,21 @@ void showlcd() {
       case 6:
         displayAntenna();
         break;
+      case 7:
+        displayUptime();
+        break;
+      case 8:
+        displayValidSyncs();
+        break;
+      case 9:
+        displayDecodeErrors();
+        break;
     }
 
     lcd.setCursor(0,2);
     clearLine(20);
     lcd.setCursor(0,2);
     switch (lcdLine) {
-      case 6:
-        displayInterrupt();
-        break;
       case 1:
         displayLastSync();
         break;
@@ -316,18 +387,24 @@ void showlcd() {
       case 5:
         displayAntenna();
         break;
+      case 6:
+        displayUptime();
+        break;
+      case 7:
+        displayValidSyncs();
+        break;
+      case 8:
+        displayDecodeErrors();
+        break;
+      case 9:
+        displayInterrupt();
+        break;
     }
 
     lcd.setCursor(0,3);
     clearLine(20);
     lcd.setCursor(0,3);
     switch (lcdLine) {
-      case 5:
-        displayInterrupt();
-        break;
-      case 6:
-        displayLastSync();
-        break;
       case 1:
         displayDST();
         break;
@@ -339,10 +416,27 @@ void showlcd() {
         break;
       case 4:
         displayAntenna();
+        break;
+      case 5:
+        displayUptime();
+        break;
+      case 6:
+        displayValidSyncs();
+        break;
+      case 7:
+        displayDecodeErrors();
+        break;
+      case 8:
+        displayInterrupt();
+        break;
+      case 9:
+        displayLastSync();
         break;
     }
   }
   else { // haven't received valid decode yet
+    lcd.setCursor(0,0);
+    clearLine(20);
     lcd.setCursor(0,1);
     displayInterrupt();
     lcd.setCursor(0,2);
@@ -362,13 +456,33 @@ void showlcd() {
 
 }
 
+char * getUptime(char *uptime_str) {
+  unsigned long cur_secs;
+  unsigned int days, hrs, mins, secs;
+
+  cur_secs = millis()/1000;
+  days = cur_secs/SECS_PER_DAY;
+  hrs  = (cur_secs - days*SECS_PER_DAY) / SECS_PER_HOUR;
+  mins = (cur_secs - days*SECS_PER_DAY - hrs*SECS_PER_HOUR) / SECS_PER_MIN;
+  secs = cur_secs - days*SECS_PER_DAY - hrs*SECS_PER_HOUR - mins*SECS_PER_MIN;
+  sprintf(uptime_str, "Up: %03ud %02uh %02um %02us", days,hrs,mins,secs);
+  return uptime_str;
+}
+
 void setup() {
+  char buf[21];
+
   Wire.begin();
   Serial.begin(9600);
   es100.begin(es100Int, es100En);
   lcd.begin(20, 4);
   lcd.clear();
+  
+  pinMode(LED_STATUS, OUTPUT);
+
   rtc.begin();
+  rtc.setSQWRate(SQW_RATE_1);
+  rtc.setOutput(0);
 
   /*  Time zone and DST setting:
    *  The value for es100.timezone can be positive or negative
@@ -381,18 +495,32 @@ void setup() {
   
   es100.timezone = 0;
   es100.DSTenabled = false;
-
   
   attachInterrupt(digitalPinToInterrupt(es100Int), atomic, FALLING);
+
+  // initialize the current rtc time 
+  Serial.print("Current time:");
+  rtcTime = rtc.getTime();
+  sprintf(buf, "%02d-%02d-%02d %02d:%02d:%02d", rtcTime.mon,rtcTime.date,rtcTime.year,rtcTime.hour,rtcTime.min,rtcTime.sec);
+  Serial.println(buf);
+
+  digitalWrite(LED_STATUS, HIGH);
+  lcd.setCursor(0,0);
+  lcd.print("Setup complete");
+  Serial.println("Setup complete");
+  delay(3000);
+  digitalWrite(LED_STATUS, LOW);
 }
 
 void loop() {
+  char buf[20];
+
   if (!receiving && trigger) {
     interruptCnt = 0;
     
     es100.enable();
     es100.startRx();
-    
+
     receiving = true;
     trigger = false;
 
@@ -404,6 +532,8 @@ void loop() {
      */
     lastinterruptCnt = 0;
     interruptCnt = 0;
+    sprintf(buf, "Trigger hr:%d",rtcTime.hour);
+    Serial.println(buf);
   }
 
 
@@ -413,6 +543,7 @@ void loop() {
     if (es100.getIRQStatus() == 0x01 && es100.getRxOk() == 0x01) {
       validdecode = true;
       Serial.println("Valid decode");
+      valid_syncs++;
       // Update lastSyncMillis for lcd display
       lastSyncMillis = millis();
       // We received a valid decode
@@ -424,7 +555,7 @@ void loop() {
       // Get everything before disabling the chip.
       status0 = es100.getStatus0();
       nextDst = es100.getNextDst();
-  
+
 /* DEBUG */
       Serial.print("status0.rxOk = B");
       Serial.println(status0.rxOk, BIN);
@@ -446,17 +577,23 @@ void loop() {
     }
     else {
       Serial.println("Invalid decode");
+      invalid_decode++;
     }
     lastinterruptCnt = interruptCnt;
   }
  
-  if (lastMillis + 100 < millis()) {
+  if (lastMillis + 1000 < millis()) {
+    static int prev_hr = 0;
+    lastMillis = millis();
+    digitalWrite(LED_STATUS, HIGH);
     showlcd();
 
     // set the trigger to start reception at midnight (UTC-4) if we are not in continous mode.
     // 4am UTC is midnight for me, adjust to your need
-    trigger = (!continous && !receiving && t.hour == 4 && t.min == 0);
+    // trigger = (!continous && !receiving && rtcTime.hour == 4 && t.min == 0); 
+    trigger = (!continous && !receiving && rtcTime.hour != prev_hr && rtcTime.min == 0); 
+    prev_hr = rtcTime.hour;
     
-    lastMillis = millis();
+    digitalWrite(LED_STATUS, LOW);
   }
 }
