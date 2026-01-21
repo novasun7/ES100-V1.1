@@ -62,7 +62,7 @@ LiquidCrystal lcd(lcdRS, lcdEN, lcdD4, lcdD5, lcdD6, lcdD7);
 
 ES100 es100;
 
-uint8_t     lp = 0;
+//uint8_t     lp = 0;
 
 unsigned long lastMillis = 0;
 volatile unsigned long atomicMillis = 0;
@@ -78,8 +78,8 @@ boolean continous = false;        // variable to tell the system to continously 
 boolean validdecode = false;      // variable to rapidly know if the system had a valid decode done lately
 
 
-Time rtcTime;
-ES100DateTime d;
+Time          rtcTime;
+//ES100DateTime d;
 ES100Status0  status0;
 ES100NextDst  nextDst;
 
@@ -582,16 +582,22 @@ void loop()
   
         if (es100.getIRQStatus() == 0x01 && es100.getRxOk() == 0x01)
         {
+            ES100DateTime es100DateTime;
+
             validdecode = true;
             Serial.println("Valid decode");
             valid_syncs++;
+
             // Update lastSyncMillis for lcd display
             lastSyncMillis = millis();
+
             // We received a valid decode
-            d = es100.getDateTime();
+            //d = es100.getDateTime();
+            es100DateTime = es100.getDateTime();
+
             // Updating the RTC (the RTC is on GMT)
-            rtc.setDate(d.day, d.month, 2000+d.year);
-            rtc.setTime(d.hour, d.minute, d.second + ((millis() - atomicMillis)/1000));
+            rtc.setDate(es100DateTime.day, es100DateTime.month, 2000+es100DateTime.year);
+            rtc.setTime(es100DateTime.hour, es100DateTime.minute, es100DateTime.second + ((millis() - atomicMillis)/1000));
 
             // Get everything before disabling the chip.
             status0 = es100.getStatus0();
@@ -635,6 +641,8 @@ void loop()
         // set the trigger to start reception at midnight (UTC-4) if we are not in continous mode.
         // 4am UTC is midnight for me, adjust to your need
         // trigger = (!continous && !receiving && rtcTime.hour == 4 && t.min == 0); 
+
+        // Sync every hour on the hour...
         trigger = (!continous && !receiving && rtcTime.hour != prev_hr && rtcTime.min == 0); 
         prev_hr = rtcTime.hour;
     
