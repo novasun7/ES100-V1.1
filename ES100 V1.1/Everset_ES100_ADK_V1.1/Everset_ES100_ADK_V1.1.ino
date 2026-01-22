@@ -87,8 +87,8 @@ DS3231 rtc(SDA, SCL);
 
 unsigned long invalid_decode = 0;
 unsigned long valid_syncs = 0;
-#define DST_OFFSET (-7)
 
+#define DST_OFFSET (-7)
 #define LED_STATUS 3
 
 void atomic()
@@ -535,6 +535,8 @@ void setup()
   
     attachInterrupt(digitalPinToInterrupt(es100Int), atomic, FALLING);
 
+	delay(5000);
+	
     // initialize the current rtc time 
     Serial.print("Current time:");
     rtcTime = rtc.getTime();
