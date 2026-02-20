@@ -64,18 +64,18 @@ ES100 es100;
 
 //uint8_t     lp = 0;
 
-unsigned long lastMillis = 0;
-volatile unsigned long atomicMillis = 0;
-unsigned long lastSyncMillis = 0;
+unsigned long __lastMillis = 0;
+volatile unsigned long __atomicMillis = 0;
+unsigned long __lastSyncMillis = 0;
 
-volatile unsigned int interruptCnt = 0;
-unsigned int lastinterruptCnt = 0;
+volatile unsigned int __interruptCnt = 0;
+unsigned int __lastInterruptCnt = 0;
 
 
-boolean receiving = false;        // variable to determine if we are in receiving mode
-boolean trigger = true;           // variable to trigger the reception
-boolean continous = false;        // variable to tell the system to continously receive atomic time, if not it will happen every night at midnight
-boolean validdecode = false;      // variable to rapidly know if the system had a valid decode done lately
+boolean __receiving = false;        // variable to determine if we are in receiving mode
+boolean __trigger = true;           // variable to trigger the reception
+boolean __continuous = false;        // variable to tell the system to continously receive atomic time, if not it will happen every night at midnight
+boolean __validDecode = false;      // variable to rapidly know if the system had a valid decode done lately
 
 
 Time          __rtcTime;
@@ -83,10 +83,10 @@ Time          __rtcTime;
 ES100Status0  status0;
 ES100NextDst  nextDst;
 
-DS3231 rtc(SDA, SCL);
+DS3231 __RTC(SDA, SCL);
 
-unsigned long invalid_decode = 0;
-unsigned long valid_syncs = 0;
+unsigned long __invalidDecode = 0;
+unsigned long __validSyncs = 0;
 
 #define DST_OFFSET (-7)
 #define LED_STATUS 3
@@ -95,8 +95,8 @@ void atomic()
 {
     // Called procedure when we receive an interrupt from the ES100
     // Got a interrupt and store the currect millis for future use if we have a valid decode
-    atomicMillis = millis();
-    interruptCnt++;
+    __atomicMillis = millis();
+    __interruptCnt++;
 }
 
 //void getRTCTimeStr(Time rtcTime, char* buf)
@@ -110,7 +110,7 @@ char* getLocalTimeStr()
     static char result[32];
 
     // get the current rtc time which should be in UTC
-    __rtcTime = rtc.getTime();
+    __rtcTime = __RTC.getTime();
 
     // This uses the TimeLib functions
     setTime(__rtcTime.hour,__rtcTime.min,__rtcTime.sec,__rtcTime.date,__rtcTime.mon,__rtcTime.year);
@@ -130,7 +130,7 @@ char* getISODateStr()
 {
     static char result[21];
 
-    // __rtcTime = rtc.getTime();
+    // __rtcTime = __RTC.getTime();
 
     result[0]=char((__rtcTime.year / 1000)+48);
     result[1]=char(((__rtcTime.year % 1000) / 100)+48);
@@ -235,12 +235,12 @@ void displayLastSync()
 {
     lcd.print("Last sync: ");
 
-    if (lastSyncMillis > 0)
+    if (__lastSyncMillis > 0)
     {
-        int days =    (millis() - lastSyncMillis) / 86400000;
-        int hours =   ((millis() - lastSyncMillis) % 86400000) / 3600000;
-        int minutes = (((millis() - lastSyncMillis) % 86400000) % 3600000) / 60000;
-        int seconds = ((((millis() - lastSyncMillis) % 86400000) % 3600000) % 60000) / 1000;
+        int days =    (millis() - __lastSyncMillis) / 86400000;
+        int hours =   ((millis() - __lastSyncMillis) % 86400000) / 3600000;
+        int minutes = (((millis() - __lastSyncMillis) % 86400000) % 3600000) / 60000;
+        int seconds = ((((millis() - __lastSyncMillis) % 86400000) % 3600000) % 60000) / 1000;
 
         if (days > 0)
         {
@@ -297,7 +297,7 @@ void displayLastSync()
 void displayInterrupt()
 {
     lcd.print("Interrupt Count: ");
-    lcd.print(interruptCnt);
+    lcd.print(__interruptCnt);
 }
 
 void displayAntenna()
@@ -331,14 +331,14 @@ void clearLine(unsigned int n)
 void displayValidSyncs(void)
 {
     char buf[21];
-    sprintf(buf, "Syncs: %lu", valid_syncs);
+    sprintf(buf, "Syncs: %lu", __validSyncs);
     lcd.print(buf);
 }
 
 void displayDecodeErrors(void)
 {
     char buf[21];
-    sprintf(buf, "Dec Err: %lu", invalid_decode);
+    sprintf(buf, "Dec Err: %lu", __invalidDecode);
     lcd.print(buf);
 }
 
@@ -361,7 +361,7 @@ void showlcd()
     // lcd.print(getISODateStr());
     lcd.print(getLocalTimeStr());
 
-    if (validdecode)
+    if (__validDecode)
     {
         // Scroll lines every 2 seconds.
         int lcdLine = (millis() / 2000 % 9) + 1;
@@ -517,9 +517,9 @@ void setup()
   
     pinMode(LED_STATUS, OUTPUT);
 
-    rtc.begin();
-    rtc.setSQWRate(SQW_RATE_1);
-    rtc.setOutput(0);
+    __RTC.begin();
+    __RTC.setSQWRate(SQW_RATE_1);
+    __RTC.setOutput(0);
 
     /*  Time zone and DST setting:
      *  The value for es100.timezone can be positive or negative
@@ -539,7 +539,7 @@ void setup()
 	
     // Get the current rtc time 
     Serial.print("Current time (UTC):");
-    __rtcTime = rtc.getTime();
+    __rtcTime = __RTC.getTime();
     sprintf(buf, "%02d-%02d-%02d %02d:%02d:%02d", __rtcTime.mon,__rtcTime.date,__rtcTime.year,__rtcTime.hour,__rtcTime.min,__rtcTime.sec);
     Serial.println(buf);
 
@@ -555,15 +555,15 @@ void loop()
 {
     char buf[20];
 
-    if (!receiving && trigger)
+    if (!__receiving && __trigger)
     {
-        interruptCnt = 0;
+        __interruptCnt = 0;
     
         es100.enable();
         es100.startRx();
 
-        receiving = true;
-        trigger = false;
+        __receiving = true;
+        __trigger = false;
 
         /* Important to set the interrupt counter AFTER the startRx because the es100 
          * confirm that the rx has started by triggering the interrupt. 
@@ -571,14 +571,14 @@ void loop()
          * so we initialize the counters after we start so we can ignore the first false 
          * trigger
          */
-        lastinterruptCnt = 0;
-        interruptCnt = 0;
+        __lastInterruptCnt = 0;
+        __interruptCnt = 0;
         //sprintf(buf, "Trigger hr:%d",__rtcTime.hour);
         //Serial.println(buf);
     }
 
 
-    if (lastinterruptCnt < interruptCnt)
+    if (__lastInterruptCnt < __interruptCnt)
     {
         Serial.print("ES100 Interrupt received... ");
   
@@ -586,20 +586,20 @@ void loop()
         {
             ES100DateTime es100DateTime;
 
-            validdecode = true;
+            __validDecode = true;
             Serial.println("Valid decode");
-            valid_syncs++;
+            __validSyncs++;
 
             // Update lastSyncMillis for lcd display
-            lastSyncMillis = millis();
+            __lastSyncMillis = millis();
 
             // We received a valid decode
             //d = es100.getDateTime();
             es100DateTime = es100.getDateTime();
 
             // Updating the RTC (the RTC is on GMT)
-            rtc.setDate(es100DateTime.day, es100DateTime.month, 2000+es100DateTime.year);
-            rtc.setTime(es100DateTime.hour, es100DateTime.minute, es100DateTime.second + ((millis() - atomicMillis)/1000));
+            __RTC.setDate(es100DateTime.day, es100DateTime.month, 2000+es100DateTime.year);
+            __RTC.setTime(es100DateTime.hour, es100DateTime.minute, es100DateTime.second + ((millis() - __atomicMillis)/1000));
 
             // Get everything before disabling the chip.
             status0 = es100.getStatus0();
@@ -618,34 +618,34 @@ void loop()
       Serial.println(status0.tracking, BIN);
 /* END DENUG */
   
-            if (!continous)
+            if (!__continuous)
             {
                 es100.stopRx();
                 es100.disable();
-                receiving = false;
+                __receiving = false;
             }
         }
         else
         {
             Serial.println("Invalid decode");
-            invalid_decode++;
+            __invalidDecode++;
         }
-        lastinterruptCnt = interruptCnt;
+        __lastInterruptCnt = __interruptCnt;
     }
  
-    if (lastMillis + 1000 < millis())
+    if (__lastMillis + 1000 < millis())
     {
         static int prev_hr = 0;
-        lastMillis = millis();
+        __lastMillis = millis();
         digitalWrite(LED_STATUS, HIGH);
         showlcd();
 
         // set the trigger to start reception at midnight (UTC-4) if we are not in continous mode.
         // 4am UTC is midnight for me, adjust to your need
-        // trigger = (!continous && !receiving && __rtcTime.hour == 4 && __rtcTime.min == 0); 
+        // __trigger = (!__continuous && !__receiving && __rtcTime.hour == 4 && __rtcTime.min == 0); 
 
         // Sync every hour on the hour...
-        trigger = (!continous && !receiving && __rtcTime.hour != prev_hr && __rtcTime.min == 0); 
+        __trigger = (!__continuous && !__receiving && __rtcTime.hour != prev_hr && __rtcTime.min == 0); 
         prev_hr = __rtcTime.hour;
     
         digitalWrite(LED_STATUS, LOW);
