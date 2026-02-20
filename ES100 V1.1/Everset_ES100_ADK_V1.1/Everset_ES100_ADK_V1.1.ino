@@ -78,7 +78,7 @@ boolean continous = false;        // variable to tell the system to continously 
 boolean validdecode = false;      // variable to rapidly know if the system had a valid decode done lately
 
 
-Time          rtcTime;
+Time          __rtcTime;
 //ES100DateTime d;
 ES100Status0  status0;
 ES100NextDst  nextDst;
@@ -99,21 +99,21 @@ void atomic()
     interruptCnt++;
 }
 
-void getRTCTimeStr(Time rtcTime, char* buf)
-{
-    sprintf(buf, "%02d-%02d-%02d %02d:%02d:%02d",
-          rtcTime.mon, rtcTime.date, rtcTime.year, rtcTime.hour, rtcTime.min, rtcTime.sec);
-}
+//void getRTCTimeStr(Time rtcTime, char* buf)
+//{
+//    sprintf(buf, "%02d-%02d-%02d %02d:%02d:%02d",
+//          rtcTime.mon, rtcTime.date, rtcTime.year, rtcTime.hour, rtcTime.min, rtcTime.sec);
+//}
 
 char* getLocalTimeStr()
 {
     static char result[32];
 
     // get the current rtc time which should be in UTC
-    rtcTime = rtc.getTime();
+    __rtcTime = rtc.getTime();
 
     // This uses the TimeLib functions
-    setTime(rtcTime.hour,rtcTime.min,rtcTime.sec,rtcTime.date,rtcTime.mon,rtcTime.year);
+    setTime(__rtcTime.hour,__rtcTime.min,__rtcTime.sec,__rtcTime.date,__rtcTime.mon,__rtcTime.year);
     time_t nowTime = now();
     long adj = DST_OFFSET*3600;
     if (status0.dstState)
@@ -126,48 +126,48 @@ char* getLocalTimeStr()
     return result;
 }
 
-char * getISODateStr()
+char* getISODateStr()
 {
     static char result[21];
 
-    // rtcTime = rtc.getTime();
+    // __rtcTime = rtc.getTime();
 
-    result[0]=char((rtcTime.year / 1000)+48);
-    result[1]=char(((rtcTime.year % 1000) / 100)+48);
-    result[2]=char(((rtcTime.year % 100) / 10)+48);
-    result[3]=char((rtcTime.year % 10)+48);
+    result[0]=char((__rtcTime.year / 1000)+48);
+    result[1]=char(((__rtcTime.year % 1000) / 100)+48);
+    result[2]=char(((__rtcTime.year % 100) / 10)+48);
+    result[3]=char((__rtcTime.year % 10)+48);
     result[4]=45;
-    if (rtcTime.mon<10)
+    if (__rtcTime.mon<10)
         result[5]=48;
     else
-        result[5]=char((rtcTime.mon / 10)+48);
-    result[6]=char((rtcTime.mon % 10)+48);
+        result[5]=char((__rtcTime.mon / 10)+48);
+    result[6]=char((__rtcTime.mon % 10)+48);
     result[7]=45;
-    if (rtcTime.date<10)
+    if (__rtcTime.date<10)
         result[8]=48;
     else
-        result[8]=char((rtcTime.date / 10)+48);
-    result[9]=char((rtcTime.date % 10)+48);
+        result[8]=char((__rtcTime.date / 10)+48);
+    result[9]=char((__rtcTime.date % 10)+48);
   
     result[10]=84;
 
-    if (rtcTime.hour<10)
+    if (__rtcTime.hour<10)
         result[11]=48;
     else
-        result[11]=char((rtcTime.hour / 10)+48);
-    result[12]=char((rtcTime.hour % 10)+48);
+        result[11]=char((__rtcTime.hour / 10)+48);
+    result[12]=char((__rtcTime.hour % 10)+48);
     result[13]=58;
-    if (rtcTime.min<10)
+    if (__rtcTime.min<10)
         result[14]=48;
     else
-        result[14]=char((rtcTime.min / 10)+48);
-    result[15]=char((rtcTime.min % 10)+48);
+        result[14]=char((__rtcTime.min / 10)+48);
+    result[15]=char((__rtcTime.min % 10)+48);
     result[16]=58;
-    if (rtcTime.sec<10)
+    if (__rtcTime.sec<10)
         result[17]=48;
     else
-        result[17]=char((rtcTime.sec / 10)+48);
-    result[18]=char((rtcTime.sec % 10)+48);
+        result[17]=char((__rtcTime.sec / 10)+48);
+    result[18]=char((__rtcTime.sec % 10)+48);
     result[19]=90;
     result[20]=0;
 
@@ -316,7 +316,7 @@ void displayAntenna()
 
 void displayUptime()
 {
-    char buf[21];
+    char buf[21]; // "Up: xxxd xxh xxm xxs"
     Uptime::calculateUptime();
     sprintf(buf, "Up: %03dd %02dh %02dm %02ds", Uptime::getDays(),Uptime::getHours(),Uptime::getMinutes(),Uptime::getSeconds());
     lcd.print(buf);
@@ -491,19 +491,19 @@ void showlcd()
 
 }
 
-char * getUptime(char *uptime_str)
-{
-    unsigned long cur_secs;
-    unsigned int days, hrs, mins, secs;
-
-    cur_secs = millis()/1000;
-    days = cur_secs/SECS_PER_DAY;
-    hrs  = (cur_secs - days*SECS_PER_DAY) / SECS_PER_HOUR;
-    mins = (cur_secs - days*SECS_PER_DAY - hrs*SECS_PER_HOUR) / SECS_PER_MIN;
-    secs = cur_secs - days*SECS_PER_DAY - hrs*SECS_PER_HOUR - mins*SECS_PER_MIN;
-    sprintf(uptime_str, "Up: %03ud %02uh %02um %02us", days,hrs,mins,secs);
-    return uptime_str;
-}
+//char * getUptime(char *uptime_str)
+//{
+//    unsigned long cur_secs;
+//    unsigned int days, hrs, mins, secs;
+//
+//    cur_secs = millis()/1000;
+//    days = cur_secs/SECS_PER_DAY;
+//    hrs  = (cur_secs - days*SECS_PER_DAY) / SECS_PER_HOUR;
+//    mins = (cur_secs - days*SECS_PER_DAY - hrs*SECS_PER_HOUR) / SECS_PER_MIN;
+//    secs = cur_secs - days*SECS_PER_DAY - hrs*SECS_PER_HOUR - mins*SECS_PER_MIN;
+//    sprintf(uptime_str, "Up: %03ud %02uh %02um %02us", days,hrs,mins,secs);
+//    return uptime_str;
+//}
 
 void setup()
 {
@@ -537,10 +537,10 @@ void setup()
 
 	delay(5000);
 	
-    // initialize the current rtc time 
-    Serial.print("Current time:");
-    rtcTime = rtc.getTime();
-    sprintf(buf, "%02d-%02d-%02d %02d:%02d:%02d", rtcTime.mon,rtcTime.date,rtcTime.year,rtcTime.hour,rtcTime.min,rtcTime.sec);
+    // Get the current rtc time 
+    Serial.print("Current time (UTC):");
+    __rtcTime = rtc.getTime();
+    sprintf(buf, "%02d-%02d-%02d %02d:%02d:%02d", __rtcTime.mon,__rtcTime.date,__rtcTime.year,__rtcTime.hour,__rtcTime.min,__rtcTime.sec);
     Serial.println(buf);
 
     digitalWrite(LED_STATUS, HIGH);
@@ -573,8 +573,8 @@ void loop()
          */
         lastinterruptCnt = 0;
         interruptCnt = 0;
-        sprintf(buf, "Trigger hr:%d",rtcTime.hour);
-        Serial.println(buf);
+        //sprintf(buf, "Trigger hr:%d",__rtcTime.hour);
+        //Serial.println(buf);
     }
 
 
@@ -642,11 +642,11 @@ void loop()
 
         // set the trigger to start reception at midnight (UTC-4) if we are not in continous mode.
         // 4am UTC is midnight for me, adjust to your need
-        // trigger = (!continous && !receiving && rtcTime.hour == 4 && t.min == 0); 
+        // trigger = (!continous && !receiving && __rtcTime.hour == 4 && __rtcTime.min == 0); 
 
         // Sync every hour on the hour...
-        trigger = (!continous && !receiving && rtcTime.hour != prev_hr && rtcTime.min == 0); 
-        prev_hr = rtcTime.hour;
+        trigger = (!continous && !receiving && __rtcTime.hour != prev_hr && __rtcTime.min == 0); 
+        prev_hr = __rtcTime.hour;
     
         digitalWrite(LED_STATUS, LOW);
     }
